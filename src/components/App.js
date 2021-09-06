@@ -1,4 +1,4 @@
-import { Component } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Style } from './App.module.css';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -11,65 +11,54 @@ import { toast } from 'react-toastify';
 
 import imgAPI, { options } from '../services/img-api';
 
-class App extends Component {
-    state = {
-        searchQuery: '',
-        showModal: false,
-        targetImg: null,
-        imgName: null,
-        status: 'idle',
-        imgArr: null,
-        error: null,
-    };
+const App = () => {
+    const [searchQuery, setSearchQuery] = useState('');
+    const [showModal, setShowModal] = useState(false);
+    const [targetImg, setTargetImg] = useState(null);
+    const [imgName, setImgName] = useState(null);
+    const [status, setStatus] = useState('idle');
+    const [imgArr, setImgArr] = useState([]);
+    const [error, setError] = useState(null);
+    const isFirstRender = useRef(true);
 
-    handleInputChange = e => {
-        this.setState({
-            searchQuery: e.target.value.toLowerCase(),
-        });
-    };
-
-    handleFormSubmit = e => {
-        e.preventDefault();
-
-        const { searchQuery } = this.state;
+    useEffect(() => {
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            return;
+        }
 
         if (searchQuery.trim() === '') {
             toast.warn('Введите ваш запрос');
             return;
         }
-        this.setState({ status: 'pending' });
-        imgAPI
-            .fetchImg(searchQuery)
-            .then(imgArr =>
-                this.checkedEmptyArr(imgArr, searchQuery),
-            )
-            .catch(error =>
-                this.setState({
-                    error,
-                }),
-            );
+        imgFetch();
+        setImgArr([]);
+    }, [searchQuery]);
+
+    const handleFormSubmit = query => {
+        setSearchQuery(query);
     };
 
-    onLoadMore = () => {
-        const { searchQuery } = this.state;
+    const imgFetch = () => {
+        setStatus('pending');
 
-        options.pageNumber += 1;
         imgAPI
             .fetchImg(searchQuery)
-            .then(imgArr => {
-                return this.setState(prevState => ({
-                    imgArr: [
-                        ...prevState.imgArr,
-                        ...imgArr.hits,
-                    ],
-                    status: 'resolved',
-                }));
+            .then(hits => {
+                setImgArr(prevState => {
+                    if (hits.hits.length === 0) {
+                        setStatus('rejected');
+                        setError(
+                            `Картинок по запросу ${searchQuery} нет`,
+                        );
+                    } else {
+                        setImgArr([...prevState, ...hits.hits]);
+                        setStatus('resolved');
+                        options.pageNumber += 1;
+                    }
+                });
             })
-            .catch(error =>
-                this.setState({
-                    error,
-                }),
-            )
+            .catch(error => setError(error))
             .finally(() => {
                 window.scrollTo({
                     top: document.documentElement.scrollHeight,
@@ -78,83 +67,65 @@ class App extends Component {
             });
     };
 
-    checkedEmptyArr = (imgArr, search) => {
-        if (imgArr.hits.length !== 0) {
-            return this.setState({
-                imgArr: imgArr.hits,
-                status: 'resolved',
-            });
-        }
-        return this.setState({
-            status: 'rejected',
-            error: `Картинок по запросу ${search} нет`,
-        });
+    const toggleModal = () => {
+        setShowModal(!showModal);
     };
 
-    toggleModal = () => {
-        this.setState(({ showModal }) => ({
-            showModal: !showModal,
-        }));
-    };
-
-    onImgClick = e => {
+    const onImgClick = e => {
         const imgURL = e.currentTarget.dataset.action;
         const imgTag = e.target.alt;
-        this.setState({ targetImg: imgURL });
-        this.setState({ imgName: imgTag });
+        setTargetImg(imgURL);
+        setImgName(imgTag);
+        window.addEventListener('keydown', handleKeydown);
     };
 
-    render() {
-        const {
-            showModal,
-            targetImg,
-            imgName,
-            status,
-            imgArr,
-            error,
-        } = this.state;
-        const {
-            handleFormSubmit,
-            toggleModal,
-            onImgClick,
-            onLoadMore,
-            handleInputChange,
-        } = this;
+    const handleKeydown = e => {
+        console.log(e.code);
+        console.log(showModal);
+        if (e.code === 'Escape' && showModal === true) {
+            toggleModal();
+            window.removeEventListener('keydown', handleKeydown);
+        }
+    };
 
-        return (
-            <div className={Style}>
-                <Searchbar
-                    onSubmit={handleFormSubmit}
-                    onChange={handleInputChange}
+    const handleOverlayClick = e => {
+        if (e.currentTarget === e.target) {
+            toggleModal();
+            window.removeEventListener('keydown', handleKeydown);
+        }
+    };
+
+    return (
+        <div className={Style}>
+            <Searchbar onSubmit={handleFormSubmit} />
+
+            <ImageGallery
+                error={error}
+                status={status}
+                imgArr={imgArr}
+                toggleModal={toggleModal}
+                onImgClick={onImgClick}
+            />
+
+            {status === 'resolved' && (
+                <Button onLoadMore={imgFetch} />
+            )}
+
+            {showModal && (
+                <Modal
+                    url={targetImg}
+                    tag={imgName}
+                    onClose={handleKeydown}
+                    handleOverlayClick={handleOverlayClick}
                 />
+            )}
 
-                <ImageGallery
-                    error={error}
-                    status={status}
-                    imgArr={imgArr}
-                    toggleModal={toggleModal}
-                    onImgClick={onImgClick}
-                />
-
-                {status === 'resolved' && (
-                    <Button onLoadMore={onLoadMore} />
-                )}
-
-                {showModal && (
-                    <Modal
-                        url={targetImg}
-                        tag={imgName}
-                        onClose={toggleModal}
-                    />
-                )}
-
-                <ToastContainer
-                    position="top-center"
-                    autoClose={2000}
-                />
-            </div>
-        );
-    }
-}
+            <ToastContainer
+                position="top-center"
+                autoClose={2000}
+            />
+        </div>
+    );
+};
 
 export default App;
