@@ -31,6 +31,8 @@ const App = () => {
             toast.warn('Введите ваш запрос');
             return;
         }
+        setStatus('pending');
+
         imgFetch();
         setImgArr([]);
     }, [searchQuery]);
@@ -40,8 +42,6 @@ const App = () => {
     };
 
     const imgFetch = () => {
-        setStatus('pending');
-
         imgAPI
             .fetchImg(searchQuery)
             .then(hits => {
