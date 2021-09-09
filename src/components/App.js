@@ -41,21 +41,23 @@ const App = () => {
         setSearchQuery(query);
     };
 
+    const checkHits = (prevState, hits) => {
+        if (hits.hits.length === 0) {
+            setStatus('rejected');
+            setError(`Картинок по запросу ${searchQuery} нет`);
+        } else {
+            setImgArr([...prevState, ...hits.hits]);
+            setStatus('resolved');
+            options.pageNumber += 1;
+        }
+    };
+
     const imgFetch = () => {
         imgAPI
             .fetchImg(searchQuery)
             .then(hits => {
                 setImgArr(prevState => {
-                    if (hits.hits.length === 0) {
-                        setStatus('rejected');
-                        setError(
-                            `Картинок по запросу ${searchQuery} нет`,
-                        );
-                    } else {
-                        setImgArr([...prevState, ...hits.hits]);
-                        setStatus('resolved');
-                        options.pageNumber += 1;
-                    }
+                    checkHits(prevState, hits);
                 });
             })
             .catch(error => setError(error))
@@ -76,23 +78,6 @@ const App = () => {
         const imgTag = e.target.alt;
         setTargetImg(imgURL);
         setImgName(imgTag);
-        window.addEventListener('keydown', handleKeydown);
-    };
-
-    const handleKeydown = e => {
-        console.log(e.code);
-        console.log(showModal);
-        if (e.code === 'Escape' && showModal === true) {
-            toggleModal();
-            window.removeEventListener('keydown', handleKeydown);
-        }
-    };
-
-    const handleOverlayClick = e => {
-        if (e.currentTarget === e.target) {
-            toggleModal();
-            window.removeEventListener('keydown', handleKeydown);
-        }
     };
 
     return (
@@ -112,12 +97,9 @@ const App = () => {
             )}
 
             {showModal && (
-                <Modal
-                    url={targetImg}
-                    tag={imgName}
-                    onClose={handleKeydown}
-                    handleOverlayClick={handleOverlayClick}
-                />
+                <Modal onClose={toggleModal}>
+                    <img src={targetImg} alt={imgName} />
+                </Modal>
             )}
 
             <ToastContainer
